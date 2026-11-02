@@ -58,9 +58,10 @@
     h1 { font-size: clamp(38px, 6vw, 76px); line-height: 1.02; letter-spacing: -.065em; margin: 13px 0 18px; }
     .hero p { color: var(--muted); font-size: clamp(16px, 2vw, 19px); line-height: 1.7; margin: 0; max-width: 660px; }
 
-    .studio { display: grid; grid-template-columns: 370px minmax(0, 1fr); gap: 18px; align-items: start; padding-bottom: 50px; }
+    .studio { display: grid; grid-template-columns: 370px minmax(0, 1fr); gap: 18px; align-items: stretch; padding-bottom: 50px; }
     .panel { background: rgba(255,253,250,.94); border: 1px solid rgba(222,215,205,.9); border-radius: 24px; box-shadow: var(--shadow); }
-    .controls { padding: 22px; position: sticky; top: 16px; }
+    .controls { padding: 0; position: relative; }
+    .controls-inner { padding: 22px; position: sticky; top: 16px; }
     .section + .section { border-top: 1px solid var(--line); padding-top: 20px; margin-top: 20px; }
     .section-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
     .section-title h2 { font-size: 15px; margin: 0; letter-spacing: -.02em; }
@@ -170,7 +171,7 @@
 
     @media (max-width: 900px) {
       .studio { grid-template-columns: 1fr; }
-      .controls { position: static; }
+      .controls-inner { position: static; }
       .workspace { min-height: auto; }
       .canvas-wrap, .palette-view, .pattern-legend { height: min(72vh, 620px); }
       .privacy-note { display: none; }
@@ -180,7 +181,8 @@
       header { padding-top: 16px; }
       .hero { padding-top: 27px; }
       h1 { font-size: 42px; }
-      .controls, .workspace { padding: 14px; border-radius: 19px; }
+      .controls, .workspace { border-radius: 19px; }
+      .controls-inner, .workspace { padding: 14px; }
       .workspace-head { align-items: flex-start; flex-direction: column; }
       .actions { width: 100%; }
       .action { flex: 1; }
@@ -213,6 +215,7 @@
 
     <main class="studio">
       <aside class="panel controls">
+        <div class="controls-inner">
         <section class="section">
           <div class="section-title"><h2><span class="step">1</span>사진 고르기</h2></div>
           <div class="drop-zone" id="dropZone">
@@ -266,6 +269,7 @@
         <section class="section">
           <button class="primary" id="convertBtn" disabled>도안 만들기</button>
         </section>
+        </div>
       </aside>
 
       <section class="panel workspace">
