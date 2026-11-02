@@ -111,8 +111,6 @@
     .primary { width: 100%; border: 0; border-radius: 14px; padding: 14px; color: white; background: var(--ink); font-weight: 800; box-shadow: 0 10px 20px rgba(38,35,31,.16); transition: .2s; }
     .primary:hover:not(:disabled) { transform: translateY(-2px); background: #000; }
     .primary:disabled { opacity: .35; cursor: not-allowed; }
-    .hint { color: var(--muted); font-size: 11px; text-align: center; margin: 9px 0 0; }
-
     .workspace { min-height: 720px; padding: 18px; }
     .workspace-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 2px 2px 16px; }
     .tabs { display: flex; gap: 5px; background: #f2eee7; border-radius: 12px; padding: 4px; }
@@ -122,13 +120,29 @@
     .action { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: white; color: var(--ink); font-size: 12px; font-weight: 800; }
     .action:disabled { opacity: .35; cursor: not-allowed; }
 
+    .pattern-stage { display: grid; grid-template-columns: 1fr; gap: 10px; min-width: 0; }
+    .pattern-stage.has-result { grid-template-columns: 210px minmax(0, 1fr); }
+    .pattern-legend {
+      height: 640px; overflow: auto; border: 1px solid var(--line); border-radius: 17px;
+      background: #faf7f1; padding: 14px 10px;
+    }
+    .legend-head { position: sticky; top: -14px; z-index: 1; background: #faf7f1; padding: 2px 3px 11px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+    .legend-head strong { display: block; font-size: 13px; }
+    .legend-head small { color: var(--muted); font-size: 10px; }
+    .legend-list { display: grid; gap: 6px; }
+    .legend-item { display: grid; grid-template-columns: 32px minmax(0,1fr) auto; align-items: center; gap: 8px; background: white; border: 1px solid var(--line); border-radius: 11px; padding: 6px; }
+    .legend-number { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 900; box-shadow: inset 0 0 0 1px rgba(0,0,0,.1); }
+    .legend-code { font-size: 11px; font-weight: 900; }
+    .legend-count { color: var(--muted); font-size: 10px; white-space: nowrap; }
+
     .canvas-wrap {
       height: 640px; border-radius: 17px; background-color: #e9e4dc;
       background-image: linear-gradient(45deg,#ded8cf 25%,transparent 25%),linear-gradient(-45deg,#ded8cf 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ded8cf 75%),linear-gradient(-45deg,transparent 75%,#ded8cf 75%);
       background-size: 22px 22px; background-position: 0 0,0 11px,11px -11px,-11px 0;
-      overflow: auto; display: grid; place-items: center; padding: 28px;
+      overflow: auto; display: grid; place-items: center; padding: 28px; min-width: 0;
     }
-    #previewCanvas { max-width: 100%; max-height: 100%; background: white; box-shadow: 0 20px 50px rgba(53,45,36,.16); image-rendering: auto; }
+    .canvas-wrap.has-pattern { place-items: start; }
+    #previewCanvas { max-width: none; max-height: none; background: white; box-shadow: 0 20px 50px rgba(53,45,36,.16); image-rendering: auto; }
     .empty { text-align: center; max-width: 360px; color: var(--muted); }
     .empty-art { display: grid; grid-template-columns: repeat(6, 18px); gap: 5px; justify-content: center; margin-bottom: 18px; transform: rotate(-3deg); }
     .empty-art i { width: 18px; height: 18px; border-radius: 50%; background: #d0c9c0; box-shadow: inset 0 0 0 5px rgba(255,255,255,.42); }
@@ -156,7 +170,7 @@
       .studio { grid-template-columns: 1fr; }
       .controls { position: static; }
       .workspace { min-height: auto; }
-      .canvas-wrap, .palette-view { height: min(72vh, 620px); }
+      .canvas-wrap, .palette-view, .pattern-legend { height: min(72vh, 620px); }
       .privacy-note { display: none; }
     }
     @media (max-width: 560px) {
@@ -168,7 +182,14 @@
       .workspace-head { align-items: flex-start; flex-direction: column; }
       .actions { width: 100%; }
       .action { flex: 1; }
+      .pattern-stage.has-result { grid-template-columns: 112px minmax(0,1fr); gap: 7px; }
+      .pattern-legend { padding: 10px 7px; }
+      .legend-head { top: -10px; padding: 2px 2px 8px; }
+      .legend-item { grid-template-columns: 28px minmax(0,1fr); gap: 6px; padding: 5px; }
+      .legend-number { width: 28px; height: 28px; font-size: 10px; }
+      .legend-count { grid-column: 2; }
       .canvas-wrap { padding: 14px; height: 60vh; }
+      .pattern-legend { height: 60vh; }
       footer { flex-direction: column; }
     }
   </style>
@@ -186,7 +207,6 @@
     <section class="hero">
       <div class="eyebrow">Photo → Perler bead pattern</div>
       <h1>사진 한 장을<br>비즈 도안으로.</h1>
-      <p>우리 집 120색 비즈 코드에 맞춰 사진을 변환해요. 크기와 표현 방식을 고르고, 완성 모습을 미리 본 뒤 PNG나 CSV로 저장하세요.</p>
     </section>
 
     <main class="studio">
@@ -233,7 +253,6 @@
 
         <section class="section">
           <button class="primary" id="convertBtn" disabled>도안 만들기</button>
-          <p class="hint">크기가 클수록 변환과 실제 제작에 더 많은 비즈가 필요해요.</p>
         </section>
       </aside>
 
@@ -249,15 +268,21 @@
           </div>
         </div>
 
-        <div class="canvas-wrap" id="canvasWrap">
-          <div class="empty" id="emptyState">
-            <div class="empty-art" aria-hidden="true">
-              <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        <div class="pattern-stage" id="patternStage">
+          <aside class="pattern-legend" id="patternLegend" hidden aria-label="사용 색상 번호표">
+            <div class="legend-head"><strong>사용 색상 번호</strong><small>많이 사용한 순</small></div>
+            <div class="legend-list" id="legendList"></div>
+          </aside>
+          <div class="canvas-wrap" id="canvasWrap">
+            <div class="empty" id="emptyState">
+              <div class="empty-art" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+              </div>
+              <strong>첫 도안을 만들어볼까요?</strong>
+              <p>사진을 고르고 원하는 비즈 개수를 정하면<br>여기에 결과가 나타나요.</p>
             </div>
-            <strong>첫 도안을 만들어볼까요?</strong>
-            <p>사진을 고르고 원하는 비즈 개수를 정하면<br>여기에 결과가 나타나요.</p>
+            <canvas id="previewCanvas" hidden></canvas>
           </div>
-          <canvas id="previewCanvas" hidden></canvas>
         </div>
 
         <div class="palette-view" id="paletteView">
@@ -309,6 +334,9 @@
     const csvBtn = $('#csvBtn');
     const paletteGrid = $('#paletteGrid');
     const paletteView = $('#paletteView');
+    const patternStage = $('#patternStage');
+    const patternLegend = $('#patternLegend');
+    const legendList = $('#legendList');
     const canvasWrap = $('#canvasWrap');
     const ctx = previewCanvas.getContext('2d');
     let sourceImage = null;
@@ -330,6 +358,7 @@
       return [116*y-16, 500*(x-y), 200*(y-z)];
     }
     palette.forEach(p => { p.rgb = hexToRgb(p.hex); p.lab = rgbToLab(p.rgb); });
+    const paletteByCode = new Map(palette.map(p => [p.code, p]));
 
     function nearestColor(rgb) {
       const lab = rgbToLab(rgb);
@@ -462,7 +491,12 @@
           const p = nearestColor([Math.max(0,Math.min(255,r)),Math.max(0,Math.min(255,g)),Math.max(0,Math.min(255,b))]);
           cells.push(p); counts[p.code]=(counts[p.code]||0)+1;
         }
-        result = {width,height,mode,cells,counts}; renderPattern(); buildPalette(counts);
+        const legend = Object.entries(counts)
+          .map(([code,count]) => ({...paletteByCode.get(code), count}))
+          .sort((a,b) => b.count-a.count || a.code.localeCompare(b.code))
+          .map((item,index) => ({...item, number:index+1}));
+        const numberByCode = Object.fromEntries(legend.map(item => [item.code,item.number]));
+        result = {width,height,mode,cells,counts,legend,numberByCode}; renderLegend(); renderPattern(); buildPalette(counts);
         const used = Object.keys(counts).length, total=width*height;
         $('#colorSummary').textContent = `${used}색 사용 · 전체 팔레트 120색`; $('#beadSummary').textContent = `총 ${total.toLocaleString('ko-KR')}개`;
         $('#paletteSummary').style.display='flex'; $('#statusText').textContent=`완료 · ${used}색 사용`; $('#dimensionText').textContent=`${width} × ${height} · ${total.toLocaleString('ko-KR')}개`;
@@ -471,31 +505,62 @@
     }
     convertBtn.addEventListener('click', transform);
 
+    function renderLegend() {
+      if (!result) return;
+      legendList.innerHTML = result.legend.map(item => {
+        const ink = item.lab[0] < 56 ? '#fff' : '#25231f';
+        return `<div class="legend-item"><span class="legend-number" style="background:${item.hex};color:${ink}">${item.number}</span><span class="legend-code">${item.code}</span><span class="legend-count">${item.count.toLocaleString('ko-KR')}개</span></div>`;
+      }).join('');
+      patternLegend.hidden = false;
+      patternStage.classList.add('has-result');
+    }
+
     function renderPattern(exportMode=false) {
       if (!result) return;
-      const maxSide = exportMode ? 2800 : 1500;
-      const cell = Math.max(exportMode ? 16 : 5, Math.floor(Math.min(maxSide/result.width, maxSide/result.height)));
-      const margin = exportMode ? Math.max(28, Math.floor(cell*1.5)) : 0;
-      previewCanvas.width=result.width*cell+margin*2; previewCanvas.height=result.height*cell+margin*2;
+      const cell = exportMode ? Math.max(18,Math.min(32,Math.floor(2200/Math.max(result.width,result.height)))) : 20;
+      const margin = exportMode ? 36 : 0;
+      const patternWidth=result.width*cell, patternHeight=result.height*cell;
+      let originX=0, originY=0, legendWidth=0, legendColumns=0, legendRows=0;
+      if (exportMode) {
+        legendColumns=Math.max(1,Math.ceil(result.legend.length/35));
+        legendRows=Math.ceil(result.legend.length/legendColumns);
+        legendWidth=legendColumns*145;
+        originX=legendWidth+margin*2; originY=margin;
+        previewCanvas.width=originX+patternWidth+margin;
+        previewCanvas.height=Math.max(patternHeight+margin*2,legendRows*30+96);
+      } else {
+        previewCanvas.width=patternWidth; previewCanvas.height=patternHeight;
+      }
       ctx.fillStyle='#fffdfa'; ctx.fillRect(0,0,previewCanvas.width,previewCanvas.height);
+      if (exportMode) {
+        ctx.fillStyle='#26231f'; ctx.textAlign='left'; ctx.textBaseline='alphabetic'; ctx.font='800 22px system-ui'; ctx.fillText('사용 색상 번호',margin,42);
+        ctx.fillStyle='#746e65'; ctx.font='12px system-ui'; ctx.fillText('많이 사용한 순 · 번호 / 코드 / 개수',margin,63);
+        result.legend.forEach((item,index) => {
+          const col=Math.floor(index/legendRows), row=index%legendRows, x=margin+col*145, y=86+row*30;
+          ctx.fillStyle=item.hex; ctx.beginPath(); ctx.arc(x+11,y,11,0,Math.PI*2); ctx.fill();
+          ctx.fillStyle=item.lab[0]<56?'#fff':'#25231f'; ctx.font='800 9px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(item.number,x+11,y);
+          ctx.fillStyle='#26231f'; ctx.font='800 11px system-ui'; ctx.textAlign='left'; ctx.fillText(item.code,x+30,y);
+          ctx.fillStyle='#746e65'; ctx.font='10px system-ui'; ctx.textAlign='right'; ctx.fillText(`${item.count}개`,x+132,y);
+        });
+      }
       for (let y=0;y<result.height;y++) for (let x=0;x<result.width;x++) {
-        const p=result.cells[y*result.width+x], px=margin+x*cell, py=margin+y*cell;
+        const p=result.cells[y*result.width+x], px=originX+x*cell, py=originY+y*cell;
         ctx.fillStyle=p.hex;
         if (showGaps) { ctx.beginPath(); ctx.arc(px+cell/2,py+cell/2,cell*.43,0,Math.PI*2); ctx.fill(); }
         else ctx.fillRect(px,py,cell+.2,cell+.2);
-        if (exportMode && cell>=24) {
-          ctx.fillStyle = p.lab[0] < 53 ? 'rgba(255,255,255,.9)' : 'rgba(20,20,20,.78)';
-          ctx.font=`700 ${Math.max(7,cell*.22)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(p.code,px+cell/2,py+cell/2);
-        } else if (showGaps && cell>=10) {
-          ctx.fillStyle='rgba(255,255,255,.32)'; ctx.beginPath(); ctx.arc(px+cell/2,py+cell/2,cell*.14,0,Math.PI*2); ctx.fill();
-        }
+        const number=result.numberByCode[p.code];
+        const light=p.lab[0]>=56, digits=String(number).length;
+        ctx.font=`900 ${cell*(digits===3?.30:digits===2?.36:.43)}px system-ui`;
+        ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineWidth=Math.max(1,cell*.06);
+        ctx.strokeStyle=light?'rgba(255,255,255,.75)':'rgba(0,0,0,.55)'; ctx.strokeText(number,px+cell/2,py+cell/2);
+        ctx.fillStyle=light?'#25231f':'#fff'; ctx.fillText(number,px+cell/2,py+cell/2);
       }
-      previewCanvas.hidden=false; emptyState.hidden=true;
+      previewCanvas.hidden=false; emptyState.hidden=true; canvasWrap.classList.add('has-pattern');
     }
 
     document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => {
       document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));
-      const isPattern=tab.dataset.view==='pattern'; canvasWrap.style.display=isPattern?'grid':'none'; paletteView.style.display=isPattern?'none':'block';
+      const isPattern=tab.dataset.view==='pattern'; patternStage.style.display=isPattern?'grid':'none'; paletteView.style.display=isPattern?'none':'block';
     }));
 
     function safeName(suffix) { return `${sourceName}-${result.width}x${result.height}-${suffix}`.replace(/[^a-zA-Z0-9가-힣_-]+/g,'-'); }
@@ -507,7 +572,7 @@
     csvBtn.addEventListener('click', () => {
       if (!result) return;
       const rows=['sep=,',...Array.from({length:result.height},(_,y)=>result.cells.slice(y*result.width,(y+1)*result.width).map(p=>p.code).join(','))];
-      rows.push('', '색상코드,개수', ...Object.entries(result.counts).sort((a,b)=>b[1]-a[1]).map(([c,n])=>`${c},${n}`));
+      rows.push('', '번호,색상코드,개수', ...result.legend.map(item=>`${item.number},${item.code},${item.count}`));
       downloadBlob(new Blob(['\ufeff'+rows.join('\r\n')],{type:'text/csv;charset=utf-8'}), safeName('codes')+'.csv'); toast('CSV를 저장했어요.');
     });
   </script>
