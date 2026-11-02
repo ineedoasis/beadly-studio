@@ -194,11 +194,11 @@
         <section class="section">
           <div class="section-title"><h2><span class="step">1</span>사진 고르기</h2></div>
           <div class="drop-zone" id="dropZone">
-            <input id="fileInput" type="file" accept="image/*" aria-label="사진 업로드">
+            <input id="fileInput" type="file" accept="image/*,.heic,.heif" aria-label="사진 업로드">
             <div class="drop-copy">
               <div class="upload-icon">＋</div>
               <strong id="dropTitle">클릭하거나 사진을 끌어오세요</strong>
-              <small id="dropSubtitle">JPG, PNG, WEBP · 기기 밖으로 전송되지 않아요</small>
+              <small id="dropSubtitle">JPG, PNG, WEBP, HEIC · 기기 밖으로 전송되지 않아요</small>
             </div>
           </div>
         </section>
@@ -315,6 +315,7 @@
     let sourceName = 'beadly-pattern';
     let result = null;
     let showGaps = true;
+    let heicLoader = null;
 
     function hexToRgb(hex) {
       const n = parseInt(hex.slice(1), 16);
@@ -351,19 +352,62 @@
       clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove('show'), 2200);
     }
 
-    function loadFile(file) {
-      if (!file || !file.type.startsWith('image/')) { toast('이미지 파일을 골라주세요.'); return; }
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
+    function isHeic(file) {
+      return /\.(heic|heif)$/i.test(file?.name || '') || /^image\/(heic|heif|heic-sequence|heif-sequence)$/i.test(file?.type || '');
+    }
+
+    function decodeImage(blob) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(blob); const img = new Image();
+        img.onload = () => resolve({img, url});
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode-failed')); };
+        img.src = url;
+      });
+    }
+
+    function loadHeicConverter() {
+      if (window.heic2any) return Promise.resolve(window.heic2any);
+      if (heicLoader) return heicLoader;
+      heicLoader = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+        script.onload = () => window.heic2any ? resolve(window.heic2any) : reject(new Error('converter-missing'));
+        script.onerror = () => reject(new Error('converter-load-failed'));
+        document.head.appendChild(script);
+      });
+      return heicLoader;
+    }
+
+    async function loadFile(file) {
+      if (!file || (!file.type.startsWith('image/') && !isHeic(file))) { toast('이미지 파일을 골라주세요.'); return; }
+      convertBtn.disabled = true;
+      $('#dropTitle').textContent = file.name;
+      $('#dropSubtitle').textContent = isHeic(file) ? '아이폰 사진을 여는 중…' : '사진을 여는 중…';
+      $('#statusText').textContent = '사진을 준비하는 중…';
+      try {
+        let decoded;
+        try {
+          decoded = await decodeImage(file);
+        } catch (nativeError) {
+          if (!isHeic(file)) throw nativeError;
+          $('#dropSubtitle').textContent = 'HEIC를 브라우저에서 변환하는 중…';
+          const converter = await loadHeicConverter();
+          let converted = await converter({blob:file, toType:'image/jpeg', quality:.9});
+          if (Array.isArray(converted)) converted = converted[0];
+          decoded = await decodeImage(converted);
+        }
+        const {img, url} = decoded;
         if (sourceImage?.objectUrl) URL.revokeObjectURL(sourceImage.objectUrl);
         img.objectUrl = url; sourceImage = img; sourceName = file.name.replace(/\.[^.]+$/, '') || 'beadly-pattern';
         dropZone.classList.add('has-image'); dropZone.style.backgroundImage = `url("${url}")`;
-        $('#dropTitle').textContent = file.name; $('#dropSubtitle').textContent = `${img.naturalWidth} × ${img.naturalHeight} · 클릭해서 바꾸기`;
+        $('#dropTitle').textContent = file.name;
+        $('#dropSubtitle').textContent = `${img.naturalWidth} × ${img.naturalHeight} · 클릭해서 바꾸기${isHeic(file) ? ' · HEIC 지원' : ''}`;
         convertBtn.disabled = false; $('#statusText').textContent = '사진 준비됨 · 설정 후 도안을 만들어보세요';
-      };
-      img.onerror = () => { URL.revokeObjectURL(url); toast('사진을 읽을 수 없어요.'); };
-      img.src = url;
+      } catch (error) {
+        $('#dropSubtitle').textContent = '다른 사진을 선택해 주세요';
+        $('#statusText').textContent = '사진을 열지 못했어요';
+        toast(isHeic(file) ? 'HEIC 사진을 열지 못했어요. 인터넷 연결을 확인해 주세요.' : '사진을 읽을 수 없어요.');
+      }
     }
     fileInput.addEventListener('change', e => loadFile(e.target.files[0]));
     ['dragenter','dragover'].forEach(type => dropZone.addEventListener(type, e => { e.preventDefault(); dropZone.classList.add('dragging'); }));
