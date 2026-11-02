@@ -92,6 +92,8 @@
     .presets { display: flex; gap: 6px; margin-top: 9px; flex-wrap: wrap; }
     .chip { border: 1px solid var(--line); background: white; color: var(--muted); border-radius: 999px; padding: 6px 9px; font-size: 11px; font-weight: 700; }
     .chip:hover { border-color: var(--accent); color: var(--accent-dark); }
+    .color-limit { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: 10px; margin-top: 17px; }
+    .color-limit span { color: var(--muted); font-size: 12px; padding-bottom: 12px; white-space: nowrap; }
 
     .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .mode { position: relative; }
@@ -236,6 +238,16 @@
             <button class="chip" data-size="64">64 × 64</button>
             <button class="chip" data-size="96">96 × 96</button>
           </div>
+          <div class="color-limit">
+            <div><label class="control-label" for="maxColors">최대 사용 색상</label><input id="maxColors" type="number" min="1" max="120" value="120" inputmode="numeric"></div>
+            <span>색 이하로 단순화</span>
+          </div>
+          <div class="presets">
+            <button class="chip" data-colors="10">10색</button>
+            <button class="chip" data-colors="20">20색</button>
+            <button class="chip" data-colors="40">40색</button>
+            <button class="chip" data-colors="120">전체 120색</button>
+          </div>
         </section>
 
         <section class="section">
@@ -360,15 +372,50 @@
     palette.forEach(p => { p.rgb = hexToRgb(p.hex); p.lab = rgbToLab(p.rgb); });
     const paletteByCode = new Map(palette.map(p => [p.code, p]));
 
-    function nearestColor(rgb) {
-      const lab = rgbToLab(rgb);
-      let best = palette[0], score = Infinity;
-      for (const p of palette) {
+    function labDistanceSq(a,b) {
+      const dL=a[0]-b[0], da=a[1]-b[1], db=a[2]-b[2];
+      return dL*dL+da*da+db*db;
+    }
+
+    function nearestColorFromLab(lab, candidates=palette) {
+      let best = candidates[0], score = Infinity;
+      for (const p of candidates) {
         const dL = lab[0]-p.lab[0], da = lab[1]-p.lab[1], db = lab[2]-p.lab[2];
         const d = dL*dL + da*da + db*db;
         if (d < score) { score = d; best = p; }
       }
       return best;
+    }
+
+    function selectLimitedPalette(initialCounts, limit) {
+      const used=Object.entries(initialCounts).map(([code,weight])=>({p:paletteByCode.get(code),weight}));
+      if (used.length<=limit) return used.map(item=>item.p);
+      const first=used.reduce((best,item)=>item.weight>best.weight?item:best);
+      let centroids=[[...first.p.lab]];
+      while (centroids.length<limit) {
+        let choice=null, bestScore=-1;
+        for (const item of used) {
+          const minDistance=Math.min(...centroids.map(c=>labDistanceSq(item.p.lab,c)));
+          const score=minDistance*(1+Math.log1p(item.weight));
+          if (score>bestScore) { bestScore=score; choice=item; }
+        }
+        centroids.push([...choice.p.lab]);
+      }
+      for (let iteration=0;iteration<12;iteration++) {
+        const sums=centroids.map(()=>[0,0,0,0]);
+        for (const item of used) {
+          let bestIndex=0, bestDistance=Infinity;
+          centroids.forEach((centroid,index)=>{ const d=labDistanceSq(item.p.lab,centroid); if(d<bestDistance){bestDistance=d;bestIndex=index;} });
+          const sum=sums[bestIndex], w=item.weight; sum[0]+=item.p.lab[0]*w; sum[1]+=item.p.lab[1]*w; sum[2]+=item.p.lab[2]*w; sum[3]+=w;
+        }
+        centroids=centroids.map((centroid,index)=>sums[index][3]?[sums[index][0]/sums[index][3],sums[index][1]/sums[index][3],sums[index][2]/sums[index][3]]:centroid);
+      }
+      const selected=[];
+      for (const centroid of centroids) {
+        const available=palette.filter(p=>!selected.includes(p));
+        selected.push(available.reduce((best,p)=>labDistanceSq(p.lab,centroid)<labDistanceSq(best.lab,centroid)?p:best));
+      }
+      return selected;
     }
 
     function buildPalette(counts = {}) {
@@ -443,8 +490,11 @@
     ['dragleave','drop'].forEach(type => dropZone.addEventListener(type, e => { e.preventDefault(); dropZone.classList.remove('dragging'); }));
     dropZone.addEventListener('drop', e => loadFile(e.dataTransfer.files[0]));
 
-    document.querySelectorAll('.chip').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('.chip[data-size]').forEach(btn => btn.addEventListener('click', () => {
       $('#gridWidth').value = btn.dataset.size; $('#gridHeight').value = btn.dataset.size;
+    }));
+    document.querySelectorAll('.chip[data-colors]').forEach(btn => btn.addEventListener('click', () => {
+      $('#maxColors').value = btn.dataset.colors;
     }));
 
     $('#gapSwitch').addEventListener('click', e => {
@@ -456,6 +506,10 @@
       const el = $(selector); const value = Math.max(8, Math.min(160, parseInt(el.value, 10) || 48)); el.value = value; return value;
     }
 
+    function boundedColorCount() {
+      const el=$('#maxColors'); const value=Math.max(1,Math.min(120,parseInt(el.value,10)||120)); el.value=value; return value;
+    }
+
     function drawFitted(targetCtx, img, width, height, fit) {
       targetCtx.fillStyle = '#ffffff'; targetCtx.fillRect(0,0,width,height);
       const scale = fit === 'contain' ? Math.min(width/img.width, height/img.height) : Math.max(width/img.width, height/img.height);
@@ -465,7 +519,7 @@
 
     function transform() {
       if (!sourceImage) return;
-      const width = boundedInt('#gridWidth'), height = boundedInt('#gridHeight');
+      const width = boundedInt('#gridWidth'), height = boundedInt('#gridHeight'), maxColors=boundedColorCount();
       const mode = document.querySelector('input[name="mode"]:checked').value;
       const fit = $('#fitMode').value;
       convertBtn.disabled = true; convertBtn.textContent = '변환하는 중…';
@@ -475,7 +529,7 @@
         const wctx = work.getContext('2d', {willReadFrequently:true}); wctx.imageSmoothingEnabled = true; wctx.imageSmoothingQuality = 'high';
         drawFitted(wctx, sourceImage, work.width, work.height, fit);
         const pixels = wctx.getImageData(0,0,work.width,work.height).data;
-        const cells = []; const counts = {};
+        const rawLabs = []; const initialCounts = {};
         for (let y=0; y<height; y++) for (let x=0; x<width; x++) {
           let r=0,g=0,b=0,n=0;
           if (mode === 'cartoon') {
@@ -488,18 +542,21 @@
           } else {
             const i=(y*work.width+x)*4; r=pixels[i]; g=pixels[i+1]; b=pixels[i+2];
           }
-          const p = nearestColor([Math.max(0,Math.min(255,r)),Math.max(0,Math.min(255,g)),Math.max(0,Math.min(255,b))]);
-          cells.push(p); counts[p.code]=(counts[p.code]||0)+1;
+          const lab=rgbToLab([Math.max(0,Math.min(255,r)),Math.max(0,Math.min(255,g)),Math.max(0,Math.min(255,b))]);
+          rawLabs.push(lab);
+          const initial=nearestColorFromLab(lab); initialCounts[initial.code]=(initialCounts[initial.code]||0)+1;
         }
+        const limitedPalette=selectLimitedPalette(initialCounts,maxColors), cells=[], counts={};
+        for (const lab of rawLabs) { const p=nearestColorFromLab(lab,limitedPalette); cells.push(p); counts[p.code]=(counts[p.code]||0)+1; }
         const legend = Object.entries(counts)
           .map(([code,count]) => ({...paletteByCode.get(code), count}))
           .sort((a,b) => b.count-a.count || a.code.localeCompare(b.code))
           .map((item,index) => ({...item, number:index+1}));
         const numberByCode = Object.fromEntries(legend.map(item => [item.code,item.number]));
-        result = {width,height,mode,cells,counts,legend,numberByCode}; renderLegend(); renderPattern(); buildPalette(counts);
+        result = {width,height,mode,maxColors,cells,counts,legend,numberByCode}; renderLegend(); renderPattern(); buildPalette(counts);
         const used = Object.keys(counts).length, total=width*height;
-        $('#colorSummary').textContent = `${used}색 사용 · 전체 팔레트 120색`; $('#beadSummary').textContent = `총 ${total.toLocaleString('ko-KR')}개`;
-        $('#paletteSummary').style.display='flex'; $('#statusText').textContent=`완료 · ${used}색 사용`; $('#dimensionText').textContent=`${width} × ${height} · ${total.toLocaleString('ko-KR')}개`;
+        $('#colorSummary').textContent = `${used}색 사용 · 최대 ${maxColors}색`; $('#beadSummary').textContent = `총 ${total.toLocaleString('ko-KR')}개`;
+        $('#paletteSummary').style.display='flex'; $('#statusText').textContent=`완료 · ${used}색 사용 (최대 ${maxColors}색)`; $('#dimensionText').textContent=`${width} × ${height} · ${total.toLocaleString('ko-KR')}개`;
         pngBtn.disabled=false; csvBtn.disabled=false; convertBtn.disabled=false; convertBtn.textContent='다시 만들기'; toast('도안이 완성됐어요!');
       });
     }
