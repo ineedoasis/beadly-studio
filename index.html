@@ -104,15 +104,6 @@
     .mode small { color: var(--muted); line-height: 1.4; }
     .mode input:checked + span { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent), 0 7px 18px rgba(239,108,85,.10); background: #fff8f5; }
 
-    .fit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .fit-option { position: relative; }
-    .fit-option input { position: absolute; opacity: 0; }
-    .fit-option span { display: block; min-height: 62px; border: 1px solid var(--line); border-radius: 13px; padding: 10px 12px; background: white; transition: .18s ease; }
-    .fit-option b { display: block; font-size: 12px; margin-bottom: 3px; }
-    .fit-option small { display: block; color: var(--muted); font-size: 10px; line-height: 1.35; }
-    .fit-option input:checked + span { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: #fff8f5; }
-    .fit-option:hover span { border-color: #c9bdb2; transform: translateY(-1px); }
-
     .switch-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; }
     .switch-row label { font-size: 12px; font-weight: 700; }
     .switch { width: 40px; height: 23px; border-radius: 99px; background: #cfc8bf; padding: 3px; transition: .2s; }
@@ -270,13 +261,10 @@
             <label class="mode"><input type="radio" name="mode" value="cartoon" checked><span><b>쉽게</b><small>색면을 단순하게 정리해 따라 만들기 쉽게</small></span></label>
             <label class="mode"><input type="radio" name="mode" value="detail"><span><b>어렵게</b><small>작은 특징까지 살려 난도가 높지만 더 섬세하게</small></span></label>
           </div>
-          <div style="margin-top:12px">
-            <div class="control-label" id="fitLabel">사진 맞춤</div>
-            <div class="fit-grid" role="radiogroup" aria-labelledby="fitLabel">
-              <label class="fit-option"><input type="radio" name="fitMode" value="cover" checked><span><b>꽉 채우기</b><small>빈틈 없이 화면을 채워요</small></span></label>
-              <label class="fit-option"><input type="radio" name="fitMode" value="contain"><span><b>전체 보기</b><small>사진 전체를 잘리지 않게 담아요</small></span></label>
+          <div class="mode-grid" style="margin-top:8px" role="radiogroup" aria-label="사진 맞춤 방식">
+              <label class="mode"><input type="radio" name="fitMode" value="cover" checked><span><b>꽉 채우기</b><small>빈틈 없이 화면을 채워요</small></span></label>
+              <label class="mode"><input type="radio" name="fitMode" value="contain"><span><b>전체 보기</b><small>사진 전체를 잘리지 않게 담아요</small></span></label>
             </div>
-          </div>
           <div class="switch-row"><label>비즈 사이 간격 보기</label><button class="switch on" id="gapSwitch" type="button" aria-label="비즈 사이 간격 보기" aria-pressed="true"></button></div>
         </section>
 
