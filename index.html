@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f1e8">
+  <title>Beadly Studio — 사진을 펄러비즈 도안으로</title>
+  <meta name="description" content="사진을 120색 펄러비즈 팔레트로 변환하고 PNG와 CSV 도안을 내려받으세요.">
+  <style>
+    :root {
+      --ink: #26231f;
+      --muted: #746e65;
+      --paper: #fffdfa;
+      --cream: #f6f1e8;
+      --line: #ded7cd;
+      --accent: #ef6c55;
+      --accent-dark: #c94d39;
+      --mint: #b9d8c3;
+      --shadow: 0 18px 50px rgba(75, 61, 43, .10);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 8%, rgba(239,108,85,.12), transparent 28rem),
+        radial-gradient(circle at 88% 16%, rgba(93,161,126,.13), transparent 26rem),
+        var(--cream);
+      font-family: Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+      min-height: 100vh;
+    }
+
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    .shell { width: min(1440px, calc(100% - 32px)); margin: 0 auto; }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 26px 0 18px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 900; letter-spacing: -.04em; }
+    .mark {
+      width: 42px; height: 42px; border-radius: 14px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 7px;
+      background: var(--ink); transform: rotate(-4deg); box-shadow: 0 8px 20px rgba(38,35,31,.18);
+    }
+    .mark i { border-radius: 50%; background: var(--paper); }
+    .mark i:nth-child(2), .mark i:nth-child(5), .mark i:nth-child(8) { background: var(--accent); }
+    .brand span { font-size: 21px; }
+    .privacy-note { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 7px; }
+    .privacy-note::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--mint); }
+
+    .hero { padding: 42px 0 32px; max-width: 780px; }
+    .eyebrow { color: var(--accent-dark); font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    h1 { font-size: clamp(38px, 6vw, 76px); line-height: 1.02; letter-spacing: -.065em; margin: 13px 0 18px; }
+    .hero p { color: var(--muted); font-size: clamp(16px, 2vw, 19px); line-height: 1.7; margin: 0; max-width: 660px; }
+
+    .studio { display: grid; grid-template-columns: 370px minmax(0, 1fr); gap: 18px; align-items: start; padding-bottom: 50px; }
+    .panel { background: rgba(255,253,250,.94); border: 1px solid rgba(222,215,205,.9); border-radius: 24px; box-shadow: var(--shadow); }
+    .controls { padding: 22px; position: sticky; top: 16px; }
+    .section + .section { border-top: 1px solid var(--line); padding-top: 20px; margin-top: 20px; }
+    .section-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .section-title h2 { font-size: 15px; margin: 0; letter-spacing: -.02em; }
+    .step { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 8px; background: var(--ink); color: white; font-size: 12px; margin-right: 8px; }
+
+    .drop-zone {
+      display: grid; place-items: center; min-height: 168px; text-align: center;
+      border: 1.5px dashed #bdb4a8; border-radius: 18px; padding: 20px;
+      background: #faf7f1; transition: .2s ease; position: relative; overflow: hidden;
+    }
+    .drop-zone.dragging { border-color: var(--accent); background: #fff2ee; transform: translateY(-2px); }
+    .drop-zone.has-image { min-height: 205px; color: white; text-shadow: 0 1px 12px rgba(0,0,0,.55); background-size: cover; background-position: center; border-style: solid; }
+    .drop-zone.has-image::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 25%, rgba(0,0,0,.58)); }
+    .drop-copy { position: relative; z-index: 1; align-self: end; }
+    .upload-icon { width: 42px; height: 42px; display: grid; place-items: center; margin: 0 auto 10px; border-radius: 13px; background: white; color: var(--accent); box-shadow: 0 8px 20px rgba(75,61,43,.10); font-size: 22px; text-shadow: none; }
+    .drop-zone.has-image .upload-icon { display: none; }
+    .drop-zone strong { display: block; font-size: 15px; }
+    .drop-zone small { display: block; margin-top: 5px; opacity: .72; }
+    #fileInput { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; z-index: 2; }
+
+    label.control-label { display: block; color: var(--muted); font-size: 12px; font-weight: 700; margin-bottom: 7px; }
+    .size-grid { display: grid; grid-template-columns: 1fr 28px 1fr; gap: 8px; align-items: end; }
+    .size-grid .times { text-align: center; padding-bottom: 12px; color: #aaa197; }
+    input[type="number"], select {
+      width: 100%; border: 1px solid var(--line); border-radius: 12px; background: white;
+      color: var(--ink); padding: 11px 12px; outline: none;
+    }
+    input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(239,108,85,.12); }
+    .presets { display: flex; gap: 6px; margin-top: 9px; flex-wrap: wrap; }
+    .chip { border: 1px solid var(--line); background: white; color: var(--muted); border-radius: 999px; padding: 6px 9px; font-size: 11px; font-weight: 700; }
+    .chip:hover { border-color: var(--accent); color: var(--accent-dark); }
+
+    .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .mode { position: relative; }
+    .mode input { position: absolute; opacity: 0; }
+    .mode span { display: block; min-height: 78px; border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: white; }
+    .mode b { display: block; font-size: 13px; margin-bottom: 4px; }
+    .mode small { color: var(--muted); line-height: 1.4; }
+    .mode input:checked + span { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent), 0 7px 18px rgba(239,108,85,.10); background: #fff8f5; }
+
+    .switch-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; }
+    .switch-row label { font-size: 12px; font-weight: 700; }
+    .switch { width: 40px; height: 23px; border-radius: 99px; background: #cfc8bf; padding: 3px; transition: .2s; }
+    .switch::after { content: ""; display: block; width: 17px; height: 17px; border-radius: 50%; background: white; transition: .2s; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
+    .switch.on { background: var(--accent); }
+    .switch.on::after { transform: translateX(17px); }
+
+    .primary { width: 100%; border: 0; border-radius: 14px; padding: 14px; color: white; background: var(--ink); font-weight: 800; box-shadow: 0 10px 20px rgba(38,35,31,.16); transition: .2s; }
+    .primary:hover:not(:disabled) { transform: translateY(-2px); background: #000; }
+    .primary:disabled { opacity: .35; cursor: not-allowed; }
+    .hint { color: var(--muted); font-size: 11px; text-align: center; margin: 9px 0 0; }
+
+    .workspace { min-height: 720px; padding: 18px; }
+    .workspace-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 2px 2px 16px; }
+    .tabs { display: flex; gap: 5px; background: #f2eee7; border-radius: 12px; padding: 4px; }
+    .tab { border: 0; background: transparent; border-radius: 9px; padding: 8px 12px; font-size: 12px; font-weight: 800; color: var(--muted); }
+    .tab.active { background: white; color: var(--ink); box-shadow: 0 2px 8px rgba(75,61,43,.10); }
+    .actions { display: flex; gap: 7px; }
+    .action { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: white; color: var(--ink); font-size: 12px; font-weight: 800; }
+    .action:disabled { opacity: .35; cursor: not-allowed; }
+
+    .canvas-wrap {
+      height: 640px; border-radius: 17px; background-color: #e9e4dc;
+      background-image: linear-gradient(45deg,#ded8cf 25%,transparent 25%),linear-gradient(-45deg,#ded8cf 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ded8cf 75%),linear-gradient(-45deg,transparent 75%,#ded8cf 75%);
+      background-size: 22px 22px; background-position: 0 0,0 11px,11px -11px,-11px 0;
+      overflow: auto; display: grid; place-items: center; padding: 28px;
+    }
+    #previewCanvas { max-width: 100%; max-height: 100%; background: white; box-shadow: 0 20px 50px rgba(53,45,36,.16); image-rendering: auto; }
+    .empty { text-align: center; max-width: 360px; color: var(--muted); }
+    .empty-art { display: grid; grid-template-columns: repeat(6, 18px); gap: 5px; justify-content: center; margin-bottom: 18px; transform: rotate(-3deg); }
+    .empty-art i { width: 18px; height: 18px; border-radius: 50%; background: #d0c9c0; box-shadow: inset 0 0 0 5px rgba(255,255,255,.42); }
+    .empty-art i:nth-child(3n) { background: #ef8a74; }
+    .empty-art i:nth-child(4n) { background: #9fc8ad; }
+    .empty strong { display: block; color: var(--ink); margin-bottom: 7px; }
+    .empty p { margin: 0; line-height: 1.6; font-size: 13px; }
+
+    .palette-view { display: none; height: 640px; overflow: auto; padding: 4px; }
+    .palette-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 9px; }
+    .swatch { min-height: 78px; border: 1px solid var(--line); border-radius: 14px; padding: 9px; background: white; display: flex; flex-direction: column; justify-content: space-between; }
+    .swatch-color { height: 34px; border-radius: 9px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.07); }
+    .swatch-row { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; margin-top: 7px; }
+    .swatch-code { font-size: 12px; font-weight: 900; }
+    .swatch-count { color: var(--muted); font-size: 10px; }
+    .palette-summary { display: none; align-items: center; justify-content: space-between; margin: 4px 2px 14px; color: var(--muted); font-size: 12px; }
+
+    .status { display: flex; justify-content: space-between; gap: 12px; padding: 13px 4px 0; color: var(--muted); font-size: 11px; }
+    footer { border-top: 1px solid rgba(222,215,205,.75); padding: 22px 0 38px; color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; gap: 16px; }
+
+    .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); padding: 11px 16px; background: var(--ink); color: white; border-radius: 12px; font-size: 12px; opacity: 0; pointer-events: none; transition: .25s; z-index: 20; }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    @media (max-width: 900px) {
+      .studio { grid-template-columns: 1fr; }
+      .controls { position: static; }
+      .workspace { min-height: auto; }
+      .canvas-wrap, .palette-view { height: min(72vh, 620px); }
+      .privacy-note { display: none; }
+    }
+    @media (max-width: 560px) {
+      .shell { width: min(100% - 20px, 1440px); }
+      header { padding-top: 16px; }
+      .hero { padding-top: 27px; }
+      h1 { font-size: 42px; }
+      .controls, .workspace { padding: 14px; border-radius: 19px; }
+      .workspace-head { align-items: flex-start; flex-direction: column; }
+      .actions { width: 100%; }
+      .action { flex: 1; }
+      .canvas-wrap { padding: 14px; height: 60vh; }
+      footer { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand">
+        <div class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <span>Beadly Studio</span>
+      </div>
+      <div class="privacy-note">사진은 브라우저 안에서만 처리돼요</div>
+    </header>
+
+    <section class="hero">
+      <div class="eyebrow">Photo → Perler bead pattern</div>
+      <h1>사진 한 장을<br>비즈 도안으로.</h1>
+      <p>우리 집 120색 비즈 코드에 맞춰 사진을 변환해요. 크기와 표현 방식을 고르고, 완성 모습을 미리 본 뒤 PNG나 CSV로 저장하세요.</p>
+    </section>
+
+    <main class="studio">
+      <aside class="panel controls">
+        <section class="section">
+          <div class="section-title"><h2><span class="step">1</span>사진 고르기</h2></div>
+          <div class="drop-zone" id="dropZone">
+            <input id="fileInput" type="file" accept="image/*" aria-label="사진 업로드">
+            <div class="drop-copy">
+              <div class="upload-icon">＋</div>
+              <strong id="dropTitle">클릭하거나 사진을 끌어오세요</strong>
+              <small id="dropSubtitle">JPG, PNG, WEBP · 기기 밖으로 전송되지 않아요</small>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title"><h2><span class="step">2</span>도안 크기</h2></div>
+          <div class="size-grid">
+            <div><label class="control-label" for="gridWidth">가로 비즈</label><input id="gridWidth" type="number" min="8" max="160" value="48"></div>
+            <div class="times">×</div>
+            <div><label class="control-label" for="gridHeight">세로 비즈</label><input id="gridHeight" type="number" min="8" max="160" value="48"></div>
+          </div>
+          <div class="presets">
+            <button class="chip" data-size="29">29 × 29</button>
+            <button class="chip" data-size="48">48 × 48</button>
+            <button class="chip" data-size="64">64 × 64</button>
+            <button class="chip" data-size="96">96 × 96</button>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title"><h2><span class="step">3</span>표현 방식</h2></div>
+          <div class="mode-grid">
+            <label class="mode"><input type="radio" name="mode" value="cartoon" checked><span><b>카툰</b><small>색면을 정리해 또렷하고 만들기 쉽게</small></span></label>
+            <label class="mode"><input type="radio" name="mode" value="detail"><span><b>디테일</b><small>그라데이션과 작은 특징을 더 섬세하게</small></span></label>
+          </div>
+          <div style="margin-top:12px">
+            <label class="control-label" for="fitMode">사진 맞춤</label>
+            <select id="fitMode"><option value="cover">프레임 가득 채우기</option><option value="contain">사진 전체 보이기</option></select>
+          </div>
+          <div class="switch-row"><label>비즈 사이 간격 보기</label><button class="switch on" id="gapSwitch" type="button" aria-label="비즈 사이 간격 보기" aria-pressed="true"></button></div>
+        </section>
+
+        <section class="section">
+          <button class="primary" id="convertBtn" disabled>도안 만들기</button>
+          <p class="hint">크기가 클수록 변환과 실제 제작에 더 많은 비즈가 필요해요.</p>
+        </section>
+      </aside>
+
+      <section class="panel workspace">
+        <div class="workspace-head">
+          <div class="tabs" role="tablist">
+            <button class="tab active" data-view="pattern" role="tab">도안 미리보기</button>
+            <button class="tab" data-view="palette" role="tab">사용 색상</button>
+          </div>
+          <div class="actions">
+            <button class="action" id="pngBtn" disabled>PNG 저장</button>
+            <button class="action" id="csvBtn" disabled>CSV 저장</button>
+          </div>
+        </div>
+
+        <div class="canvas-wrap" id="canvasWrap">
+          <div class="empty" id="emptyState">
+            <div class="empty-art" aria-hidden="true">
+              <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+            <strong>첫 도안을 만들어볼까요?</strong>
+            <p>사진을 고르고 원하는 비즈 개수를 정하면<br>여기에 결과가 나타나요.</p>
+          </div>
+          <canvas id="previewCanvas" hidden></canvas>
+        </div>
+
+        <div class="palette-view" id="paletteView">
+          <div class="palette-summary" id="paletteSummary"><span id="colorSummary">120색 팔레트</span><span id="beadSummary"></span></div>
+          <div class="palette-grid" id="paletteGrid"></div>
+        </div>
+        <div class="status"><span id="statusText">준비됨 · 120색 팔레트</span><span id="dimensionText"></span></div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Beadly Studio · 친구들과 가볍게 쓰는 펄러비즈 도안 도구</span>
+      <span>색상은 촬영 조명과 화면에 따라 실제 비즈와 조금 다를 수 있어요.</span>
+    </footer>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const palette = [
+      ['B03','#65a455'],['C03','#55b6d9'],['D09','#968bc4'],['E02','#c48dc2'],['G01','#e0c0af'],['A04','#ded340'],
+      ['B05','#479545'],['C05','#347cc4'],['D06','#6f4bb1'],['E04','#ae4b84'],['G05','#a88340'],['A06','#be763e'],
+      ['B08','#286a3d'],['C08','#2d3e92'],['D07','#563892'],['F05','#bb2e42'],['G07','#55362e'],['A07','#b55b3b'],
+      ['H01','#f5f7f5'],['H02','#e4ebed'],['H03','#afbac0'],['H04','#707981'],['H05','#494f5a'],['H07','#252a33'],
+      ['C02','#78cddf'],['C13','#a0bee8'],['D19','#a398bd'],['E08','#d6abd3'],['A13','#cbab7f'],['A11','#d8c495'],
+      ['C10','#409dd8'],['C06','#5076c4'],['D18','#573e90'],['E03','#ad8fbc'],['A10','#a85f46'],['G09','#a68a65'],
+      ['C11','#55bcbf'],['C07','#344795'],['D21','#4f2a80'],['D13','#6a2778'],['F13','#a53e39'],['G13','#714f49'],
+      ['B12','#2d6351'],['D03','#353b86'],['D15','#292d73'],['E07','#962c63'],['F08','#8d2740'],['G08','#3b2427'],
+      ['A03','#cdce44'],['B20','#a3c4ab'],['D16','#abb6d2'],['D08','#ac9cd0'],['E01','#bfb0b6'],['G02','#bc9385'],
+      ['B18','#b4c63d'],['B10','#7ca393'],['D11','#7b80bb'],['D12','#8864a0'],['E12','#a56794'],['G03','#aa8d7c'],
+      ['B14','#6fa13a'],['B19','#3b9076'],['D02','#5356bc'],['D20','#49378a'],['E05','#a86a9a'],['F10','#4c3528'],
+      ['B17','#6c8735'],['B07','#457b60'],['C16','#4a5b8d'],['D14','#8c89a2'],['E13','#baa7c6'],['F07','#563444'],
+      ['E11','#c8b8bc'],['E14','#d0b8af'],['F01','#c7827f'],['A14','#a76766'],['M06','#9b9e8c'],['M05','#b0b3a4'],
+      ['E15','#bfa5b2'],['F14','#c48a98'],['F09','#a1576a'],['F02','#c34b57'],['G14','#645955'],['M09','#73625e'],
+      ['E09','#a65d9f'],['E06','#b43a70'],['F12','#c44258'],['F03','#b34647'],['F11','#43373a'],['M12','#666574'],
+      ['D05','#d8d1c6'],['E10','#793f8d'],['F04','#a93655'],['F06','#702f3a'],['G17','#564547'],['H06','#272932'],
+      ['A15','#d4d741'],['A05','#bcb139'],['A08','#d0ad3a'],['A12','#bf795b'],['A09','#b86f4a'],['G06','#a16d2b'],
+      ['A01','#d9dbb8'],['B13','#a5c46a'],['B01','#b9cf41'],['B02','#6ba94e'],['B04','#548a46'],['B11','#3b4c38'],
+      ['H12','#f0f0e8'],['C01','#b3d8cd'],['B16','#99bd83'],['B06','#5a9d7e'],['C15','#3f999a'],['B15','#325b4b'],
+      ['C14','#98c9d9'],['D17','#899cd1'],['D01','#a9c3e2'],['C04','#4599c7'],['C17','#4c9ec0'],['C09','#3a517c']
+    ].map(([code, hex]) => ({code, hex}));
+
+    const $ = (selector) => document.querySelector(selector);
+    const fileInput = $('#fileInput');
+    const dropZone = $('#dropZone');
+    const convertBtn = $('#convertBtn');
+    const previewCanvas = $('#previewCanvas');
+    const emptyState = $('#emptyState');
+    const pngBtn = $('#pngBtn');
+    const csvBtn = $('#csvBtn');
+    const paletteGrid = $('#paletteGrid');
+    const paletteView = $('#paletteView');
+    const canvasWrap = $('#canvasWrap');
+    const ctx = previewCanvas.getContext('2d');
+    let sourceImage = null;
+    let sourceName = 'beadly-pattern';
+    let result = null;
+    let showGaps = true;
+
+    function hexToRgb(hex) {
+      const n = parseInt(hex.slice(1), 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+    function rgbToLab([r,g,b]) {
+      [r,g,b] = [r,g,b].map(v => { v /= 255; return v > .04045 ? ((v + .055) / 1.055) ** 2.4 : v / 12.92; });
+      let x = (r*.4124 + g*.3576 + b*.1805) / .95047;
+      let y = (r*.2126 + g*.7152 + b*.0722);
+      let z = (r*.0193 + g*.1192 + b*.9505) / 1.08883;
+      [x,y,z] = [x,y,z].map(v => v > .008856 ? Math.cbrt(v) : 7.787*v + 16/116);
+      return [116*y-16, 500*(x-y), 200*(y-z)];
+    }
+    palette.forEach(p => { p.rgb = hexToRgb(p.hex); p.lab = rgbToLab(p.rgb); });
+
+    function nearestColor(rgb) {
+      const lab = rgbToLab(rgb);
+      let best = palette[0], score = Infinity;
+      for (const p of palette) {
+        const dL = lab[0]-p.lab[0], da = lab[1]-p.lab[1], db = lab[2]-p.lab[2];
+        const d = dL*dL + da*da + db*db;
+        if (d < score) { score = d; best = p; }
+      }
+      return best;
+    }
+
+    function buildPalette(counts = {}) {
+      paletteGrid.innerHTML = palette.map(p => `<div class="swatch" data-code="${p.code}"><div class="swatch-color" style="background:${p.hex}"></div><div class="swatch-row"><span class="swatch-code">${p.code}</span><span class="swatch-count">${counts[p.code] ? counts[p.code] + '개' : ''}</span></div></div>`).join('');
+    }
+    buildPalette();
+
+    function toast(message) {
+      const el = $('#toast'); el.textContent = message; el.classList.add('show');
+      clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove('show'), 2200);
+    }
+
+    function loadFile(file) {
+      if (!file || !file.type.startsWith('image/')) { toast('이미지 파일을 골라주세요.'); return; }
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        if (sourceImage?.objectUrl) URL.revokeObjectURL(sourceImage.objectUrl);
+        img.objectUrl = url; sourceImage = img; sourceName = file.name.replace(/\.[^.]+$/, '') || 'beadly-pattern';
+        dropZone.classList.add('has-image'); dropZone.style.backgroundImage = `url("${url}")`;
+        $('#dropTitle').textContent = file.name; $('#dropSubtitle').textContent = `${img.naturalWidth} × ${img.naturalHeight} · 클릭해서 바꾸기`;
+        convertBtn.disabled = false; $('#statusText').textContent = '사진 준비됨 · 설정 후 도안을 만들어보세요';
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); toast('사진을 읽을 수 없어요.'); };
+      img.src = url;
+    }
+    fileInput.addEventListener('change', e => loadFile(e.target.files[0]));
+    ['dragenter','dragover'].forEach(type => dropZone.addEventListener(type, e => { e.preventDefault(); dropZone.classList.add('dragging'); }));
+    ['dragleave','drop'].forEach(type => dropZone.addEventListener(type, e => { e.preventDefault(); dropZone.classList.remove('dragging'); }));
+    dropZone.addEventListener('drop', e => loadFile(e.dataTransfer.files[0]));
+
+    document.querySelectorAll('.chip').forEach(btn => btn.addEventListener('click', () => {
+      $('#gridWidth').value = btn.dataset.size; $('#gridHeight').value = btn.dataset.size;
+    }));
+
+    $('#gapSwitch').addEventListener('click', e => {
+      showGaps = !showGaps; e.currentTarget.classList.toggle('on', showGaps); e.currentTarget.setAttribute('aria-pressed', String(showGaps));
+      if (result) renderPattern();
+    });
+
+    function boundedInt(selector) {
+      const el = $(selector); const value = Math.max(8, Math.min(160, parseInt(el.value, 10) || 48)); el.value = value; return value;
+    }
+
+    function drawFitted(targetCtx, img, width, height, fit) {
+      targetCtx.fillStyle = '#ffffff'; targetCtx.fillRect(0,0,width,height);
+      const scale = fit === 'contain' ? Math.min(width/img.width, height/img.height) : Math.max(width/img.width, height/img.height);
+      const dw = img.width*scale, dh = img.height*scale;
+      targetCtx.drawImage(img, (width-dw)/2, (height-dh)/2, dw, dh);
+    }
+
+    function transform() {
+      if (!sourceImage) return;
+      const width = boundedInt('#gridWidth'), height = boundedInt('#gridHeight');
+      const mode = document.querySelector('input[name="mode"]:checked').value;
+      const fit = $('#fitMode').value;
+      convertBtn.disabled = true; convertBtn.textContent = '변환하는 중…';
+      requestAnimationFrame(() => {
+        const scale = mode === 'cartoon' ? 3 : 1;
+        const work = document.createElement('canvas'); work.width = width*scale; work.height = height*scale;
+        const wctx = work.getContext('2d', {willReadFrequently:true}); wctx.imageSmoothingEnabled = true; wctx.imageSmoothingQuality = 'high';
+        drawFitted(wctx, sourceImage, work.width, work.height, fit);
+        const pixels = wctx.getImageData(0,0,work.width,work.height).data;
+        const cells = []; const counts = {};
+        for (let y=0; y<height; y++) for (let x=0; x<width; x++) {
+          let r=0,g=0,b=0,n=0;
+          if (mode === 'cartoon') {
+            for (let sy=0; sy<scale; sy++) for (let sx=0; sx<scale; sx++) {
+              const i = ((y*scale+sy)*work.width + x*scale+sx)*4; r+=pixels[i]; g+=pixels[i+1]; b+=pixels[i+2]; n++;
+            }
+            r/=n; g/=n; b/=n;
+            const avg=(r+g+b)/3, sat=1.10, contrast=1.05;
+            r=(avg+(r-avg)*sat-128)*contrast+128; g=(avg+(g-avg)*sat-128)*contrast+128; b=(avg+(b-avg)*sat-128)*contrast+128;
+          } else {
+            const i=(y*work.width+x)*4; r=pixels[i]; g=pixels[i+1]; b=pixels[i+2];
+          }
+          const p = nearestColor([Math.max(0,Math.min(255,r)),Math.max(0,Math.min(255,g)),Math.max(0,Math.min(255,b))]);
+          cells.push(p); counts[p.code]=(counts[p.code]||0)+1;
+        }
+        result = {width,height,mode,cells,counts}; renderPattern(); buildPalette(counts);
+        const used = Object.keys(counts).length, total=width*height;
+        $('#colorSummary').textContent = `${used}색 사용 · 전체 팔레트 120색`; $('#beadSummary').textContent = `총 ${total.toLocaleString('ko-KR')}개`;
+        $('#paletteSummary').style.display='flex'; $('#statusText').textContent=`완료 · ${used}색 사용`; $('#dimensionText').textContent=`${width} × ${height} · ${total.toLocaleString('ko-KR')}개`;
+        pngBtn.disabled=false; csvBtn.disabled=false; convertBtn.disabled=false; convertBtn.textContent='다시 만들기'; toast('도안이 완성됐어요!');
+      });
+    }
+    convertBtn.addEventListener('click', transform);
+
+    function renderPattern(exportMode=false) {
+      if (!result) return;
+      const maxSide = exportMode ? 2800 : 1500;
+      const cell = Math.max(exportMode ? 16 : 5, Math.floor(Math.min(maxSide/result.width, maxSide/result.height)));
+      const margin = exportMode ? Math.max(28, Math.floor(cell*1.5)) : 0;
+      previewCanvas.width=result.width*cell+margin*2; previewCanvas.height=result.height*cell+margin*2;
+      ctx.fillStyle='#fffdfa'; ctx.fillRect(0,0,previewCanvas.width,previewCanvas.height);
+      for (let y=0;y<result.height;y++) for (let x=0;x<result.width;x++) {
+        const p=result.cells[y*result.width+x], px=margin+x*cell, py=margin+y*cell;
+        ctx.fillStyle=p.hex;
+        if (showGaps) { ctx.beginPath(); ctx.arc(px+cell/2,py+cell/2,cell*.43,0,Math.PI*2); ctx.fill(); }
+        else ctx.fillRect(px,py,cell+.2,cell+.2);
+        if (exportMode && cell>=24) {
+          ctx.fillStyle = p.lab[0] < 53 ? 'rgba(255,255,255,.9)' : 'rgba(20,20,20,.78)';
+          ctx.font=`700 ${Math.max(7,cell*.22)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(p.code,px+cell/2,py+cell/2);
+        } else if (showGaps && cell>=10) {
+          ctx.fillStyle='rgba(255,255,255,.32)'; ctx.beginPath(); ctx.arc(px+cell/2,py+cell/2,cell*.14,0,Math.PI*2); ctx.fill();
+        }
+      }
+      previewCanvas.hidden=false; emptyState.hidden=true;
+    }
+
+    document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));
+      const isPattern=tab.dataset.view==='pattern'; canvasWrap.style.display=isPattern?'grid':'none'; paletteView.style.display=isPattern?'none':'block';
+    }));
+
+    function safeName(suffix) { return `${sourceName}-${result.width}x${result.height}-${suffix}`.replace(/[^a-zA-Z0-9가-힣_-]+/g,'-'); }
+    function downloadBlob(blob, name) { const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
+    pngBtn.addEventListener('click', () => {
+      if (!result) return; renderPattern(true);
+      previewCanvas.toBlob(blob => { downloadBlob(blob, safeName('pattern')+'.png'); renderPattern(false); toast('PNG를 저장했어요.'); }, 'image/png');
+    });
+    csvBtn.addEventListener('click', () => {
+      if (!result) return;
+      const rows=['sep=,',...Array.from({length:result.height},(_,y)=>result.cells.slice(y*result.width,(y+1)*result.width).map(p=>p.code).join(','))];
+      rows.push('', '색상코드,개수', ...Object.entries(result.counts).sort((a,b)=>b[1]-a[1]).map(([c,n])=>`${c},${n}`));
+      downloadBlob(new Blob(['\ufeff'+rows.join('\r\n')],{type:'text/csv;charset=utf-8'}), safeName('codes')+'.csv'); toast('CSV를 저장했어요.');
+    });
+  </script>
+</body>
+</html>
