@@ -154,6 +154,11 @@
     .legend-list { display: grid; gap: 6px; }
     .legend-item { display: grid; grid-template-columns: 32px minmax(0,1fr) auto; align-items: center; gap: 8px; background: white; border: 1px solid var(--line); border-radius: 11px; padding: 6px; }
     .legend-number { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 900; box-shadow: inset 0 0 0 1px rgba(0,0,0,.1); }
+    .legend-item { width: 100%; text-align: left; color: var(--ink); font: inherit; }
+    .legend-item[aria-pressed="true"], .swatch[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+    .legend-item:focus-visible, .swatch:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .swatch { width: 100%; text-align: left; color: var(--ink); }
+    .color-focus-note { display: block; margin-top: 8px; font-size: 11px; color: var(--muted); line-height: 1.5; }
     .legend-code { font-size: 11px; font-weight: 900; }
     .legend-count { color: var(--muted); font-size: 10px; white-space: nowrap; }
 
@@ -326,7 +331,7 @@
 
         <div class="pattern-stage" id="patternStage">
           <aside class="pattern-legend" id="patternLegend" hidden aria-label="사용 색상 번호표">
-            <div class="legend-head"><strong>사용 색상 번호</strong><small>많이 사용한 순</small></div>
+            <div class="legend-head"><strong>사용 색상 번호</strong><small>많이 사용한 순 · 색상을 눌러 강조</small><span class="color-focus-note" id="colorFocusNote" aria-live="polite">전체 색상 표시</span><button class="chip" id="clearColorFocus" type="button" hidden>강조 해제</button></div>
             <div class="legend-list" id="legendList"></div>
           </aside>
           <div class="canvas-wrap" id="canvasWrap">
@@ -406,6 +411,7 @@
     let sourceImage = null;
     let sourceName = 'beadly-pattern';
     let result = null;
+    let focusedColor = null;
     let showGaps = true;
     let heicLoader = null;
     let lineFocus = {mode:'all', index:0};
@@ -472,7 +478,7 @@
     }
 
     function buildPalette(counts = {}) {
-      paletteGrid.innerHTML = palette.map(p => `<div class="swatch" data-code="${p.code}"><div class="swatch-color" style="background:${p.hex}"></div><div class="swatch-row"><span class="swatch-code">${p.code}</span><span class="swatch-count">${counts[p.code] ? counts[p.code] + '개' : ''}</span></div></div>`).join('');
+      paletteGrid.innerHTML = palette.map(p => `<button type="button" class="swatch" data-code="${p.code}" aria-label="${p.code} 색상 강조" aria-pressed="${focusedColor===p.code}"><div class="swatch-color" style="background:${p.hex}"></div><div class="swatch-row"><span class="swatch-code">${p.code}</span><span class="swatch-count">${counts[p.code] ? counts[p.code] + '개' : ''}</span></div></button>`).join('');
     }
     buildPalette();
 
@@ -607,6 +613,7 @@
           .map((item,index) => ({...item, number:index+1}));
         const numberByCode = Object.fromEntries(legend.map(item => [item.code,item.number]));
         result = {width,height,mode,maxColors,cells,counts,legend,numberByCode};
+        if (!counts[focusedColor]) focusedColor = null;
         lineFocus.index = Math.min(lineFocus.index, Math.max(0, lineFocus.mode === 'column' ? width-1 : height-1));
         renderLegend(); updateLineFocusControls(); renderPattern(); buildPalette(counts);
         const used = Object.keys(counts).length, total=width*height;
@@ -621,11 +628,28 @@
       if (!result) return;
       legendList.innerHTML = result.legend.map(item => {
         const ink = item.lab[0] < 56 ? '#fff' : '#25231f';
-        return `<div class="legend-item"><span class="legend-number" style="background:${item.hex};color:${ink}">${item.number}</span><span class="legend-code">${item.code}</span><span class="legend-count">${item.count.toLocaleString('ko-KR')}개</span></div>`;
+        return `<button type="button" class="legend-item" data-code="${item.code}" aria-label="${item.code} 색상 강조" aria-pressed="${focusedColor===item.code}"><span class="legend-number" style="background:${item.hex};color:${ink}">${item.number}</span><span class="legend-code">${item.code}</span><span class="legend-count">${item.count.toLocaleString('ko-KR')}개</span></button>`;
       }).join('');
+      $('#colorFocusNote').textContent = focusedColor ? `${focusedColor} · ${result.counts[focusedColor].toLocaleString('ko-KR')}개 강조 중` : '전체 색상 표시';
+      $('#clearColorFocus').hidden = !focusedColor;
       patternLegend.hidden = false;
       patternStage.classList.add('has-result');
     }
+
+    function focusColor(code) {
+      if (!result) { toast('사진으로 도안을 먼저 만들어 주세요.'); return; }
+      if (!result.counts[code]) { toast('이 도안에 사용되지 않은 색상이에요.'); return; }
+      focusedColor = focusedColor === code ? null : code;
+      renderLegend(); buildPalette(result.counts); renderPattern();
+      document.querySelector('.tab[data-view="pattern"]').click();
+    }
+    [legendList, paletteGrid].forEach(list => list.addEventListener('click', event => {
+      const button = event.target.closest('button[data-code]');
+      if (button && list.contains(button)) focusColor(button.dataset.code);
+    }));
+    $('#clearColorFocus').addEventListener('click', () => {
+      focusedColor = null; renderLegend(); buildPalette(result.counts); renderPattern();
+    });
 
     function lineCount() {
       if (!result || lineFocus.mode === 'all') return 0;
@@ -702,9 +726,12 @@
       const patternCtx=patternCanvas.getContext('2d');
       for (let y=0;y<result.height;y++) for (let x=0;x<result.width;x++) {
         const p=result.cells[y*result.width+x], px=x*cell, py=y*cell;
+        const dimmed = !exportMode && focusedColor && p.code !== focusedColor;
+        patternCtx.globalAlpha = dimmed ? .12 : 1;
         patternCtx.fillStyle=p.hex;
         if (showGaps) { patternCtx.beginPath(); patternCtx.arc(px+cell/2,py+cell/2,cell*.43,0,Math.PI*2); patternCtx.fill(); }
         else patternCtx.fillRect(px,py,cell+.2,cell+.2);
+        if (dimmed) continue;
         const number=result.numberByCode[p.code];
         const light=p.lab[0]>=56, digits=String(number).length;
         patternCtx.font=`900 ${cell*(digits===3?.30:digits===2?.36:.43)}px system-ui`;
@@ -712,6 +739,7 @@
         patternCtx.strokeStyle=light?'rgba(255,255,255,.75)':'rgba(0,0,0,.55)'; patternCtx.strokeText(number,px+cell/2,py+cell/2);
         patternCtx.fillStyle=light?'#25231f':'#fff'; patternCtx.fillText(number,px+cell/2,py+cell/2);
       }
+      patternCtx.globalAlpha = 1;
       if (!exportMode && lineFocus.mode !== 'all') {
         ctx.save(); ctx.filter=`blur(${Math.max(2,cell*.18)}px)`; ctx.globalAlpha=.28;
         ctx.drawImage(patternCanvas,originX,originY); ctx.restore();
@@ -726,6 +754,12 @@
       } else {
         ctx.drawImage(patternCanvas,originX,originY);
       }
+      // Keep five-bead blocks visible in the preview and exported PNG.
+      ctx.save(); ctx.strokeStyle='rgba(38,35,31,.6)'; ctx.lineWidth=1.5;
+      ctx.beginPath();
+      for (let x=5;x<result.width;x+=5) { ctx.moveTo(originX+x*cell,originY); ctx.lineTo(originX+x*cell,originY+patternHeight); }
+      for (let y=5;y<result.height;y+=5) { ctx.moveTo(originX,originY+y*cell); ctx.lineTo(originX+patternWidth,originY+y*cell); }
+      ctx.stroke(); ctx.strokeRect(originX+.75,originY+.75,patternWidth-1.5,patternHeight-1.5); ctx.restore();
       previewCanvas.hidden=false; emptyState.hidden=true; canvasWrap.classList.add('has-pattern');
     }
 
@@ -750,3 +784,4 @@
   </script>
 </body>
 </html>
+
