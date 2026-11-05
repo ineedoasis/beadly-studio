@@ -227,6 +227,20 @@
       .canvas-wrap { padding: 14px; }
       footer { flex-direction: column; }
     }
+    .workspace.preview-fullscreen {
+      position: fixed; inset: 0; z-index: 100; width: 100%; height: 100vh; height: 100dvh;
+      min-height: 0; margin: 0; border: 0; border-radius: 0; background: var(--paper);
+      padding: max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));
+    }
+    .workspace.preview-fullscreen .workspace-head { flex-direction: row; justify-content: flex-end; flex: 0 0 auto; }
+    .workspace.preview-fullscreen .tabs, .workspace.preview-fullscreen #pngBtn,
+    .workspace.preview-fullscreen #csvBtn, .workspace.preview-fullscreen .status,
+    .workspace.preview-fullscreen .palette-view { display: none !important; }
+    .workspace.preview-fullscreen .actions { width: auto; }
+    .workspace.preview-fullscreen .pattern-stage { display: grid !important; flex: 1 1 0; min-height: 0; height: auto; overflow: hidden; }
+    .workspace.preview-fullscreen .line-focus-bar { flex: 0 0 auto; }
+    .workspace.preview-fullscreen .canvas-wrap, .workspace.preview-fullscreen .pattern-legend { min-height: 0; }
+    .workspace.preview-fullscreen:focus { outline: none; }
   </style>
 </head>
 <body>
@@ -303,13 +317,14 @@
         </div>
       </aside>
 
-      <section class="panel workspace">
+      <section class="panel workspace" id="previewWorkspace">
         <div class="workspace-head">
           <div class="tabs" role="tablist">
             <button class="tab active" data-view="pattern" role="tab">도안 미리보기</button>
             <button class="tab" data-view="palette" role="tab">사용 색상</button>
           </div>
           <div class="actions">
+            <button class="action" id="fullscreenBtn" type="button" aria-label="도안 미리보기 전체화면" aria-expanded="false">⛶ 전체화면</button>
             <button class="action" id="pngBtn" disabled>PNG 저장</button>
             <button class="action" id="csvBtn" disabled>CSV 저장</button>
           </div>
@@ -822,6 +837,58 @@
       lineFocusBar.hidden = !isPattern || !result;
     }));
 
+    const previewWorkspace = $('#previewWorkspace');
+    const fullscreenBtn = $('#fullscreenBtn');
+    let previewFullscreen = false, fullscreenReturnFocus = null, previousBodyOverflow = '';
+    const fullscreenBackground = [...document.querySelectorAll('header, .hero, .controls, footer')];
+    let previousInert = [];
+    function closePreviewFullscreen() {
+      if (!previewFullscreen) return;
+      previewFullscreen = false;
+      previewWorkspace.classList.remove('preview-fullscreen');
+      previewWorkspace.removeAttribute('role'); previewWorkspace.removeAttribute('aria-modal');
+      previewWorkspace.removeAttribute('aria-label'); previewWorkspace.removeAttribute('tabindex');
+      document.body.style.overflow = previousBodyOverflow;
+      fullscreenBackground.forEach((el,i) => { el.inert = previousInert[i]; });
+      fullscreenBtn.textContent = '⛶ 전체화면';
+      fullscreenBtn.setAttribute('aria-label','도안 미리보기 전체화면');
+      fullscreenBtn.setAttribute('aria-expanded','false');
+      if (document.fullscreenElement === previewWorkspace) document.exitFullscreen().catch(()=>{});
+      fullscreenReturnFocus?.focus();
+    }
+    fullscreenBtn.addEventListener('click', () => {
+      if (previewFullscreen) { closePreviewFullscreen(); return; }
+      document.querySelector('.tab[data-view="pattern"]').click();
+      fullscreenReturnFocus = document.activeElement;
+      previousBodyOverflow = document.body.style.overflow;
+      previousInert = fullscreenBackground.map(el=>el.inert);
+      fullscreenBackground.forEach(el=>{ el.inert=true; });
+      previewFullscreen = true; document.body.style.overflow='hidden';
+      previewWorkspace.classList.add('preview-fullscreen');
+      previewWorkspace.setAttribute('role','dialog'); previewWorkspace.setAttribute('aria-modal','true');
+      previewWorkspace.setAttribute('aria-label','도안 미리보기 전체화면'); previewWorkspace.setAttribute('tabindex','-1');
+      fullscreenBtn.textContent='✕ 전체화면 닫기';
+      fullscreenBtn.setAttribute('aria-label','전체화면 닫기'); fullscreenBtn.setAttribute('aria-expanded','true');
+      fullscreenBtn.focus();
+      // The fixed layout also works on browsers without the Fullscreen API.
+      if (previewWorkspace.requestFullscreen) previewWorkspace.requestFullscreen().catch(()=>{});
+    });
+    document.addEventListener('fullscreenchange', () => {
+      if (previewFullscreen && !document.fullscreenElement) closePreviewFullscreen();
+    });
+    document.addEventListener('keydown', event => {
+      if (!previewFullscreen) return;
+      if (event.key==='Escape') { event.preventDefault(); closePreviewFullscreen(); return; }
+      if (event.key!=='Tab') return;
+      const focusable=[...previewWorkspace.querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex="0"]')]
+        .filter(el=>el.getClientRects().length && !el.closest('[hidden]'));
+      const first=focusable[0], last=focusable[focusable.length-1];
+      if (!first) { event.preventDefault(); previewWorkspace.focus(); }
+      else if (event.shiftKey && (document.activeElement===first || !previewWorkspace.contains(document.activeElement))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && document.activeElement===last) { event.preventDefault(); first.focus(); }
+    });
+
     function safeName(suffix) { return `${sourceName}-${result.width}x${result.height}-${suffix}`.replace(/[^a-zA-Z0-9가-힣_-]+/g,'-'); }
     function downloadBlob(blob, name) { const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
     pngBtn.addEventListener('click', () => {
@@ -837,5 +904,6 @@
   </script>
 </body>
 </html>
+
 
 
