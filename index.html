@@ -599,11 +599,25 @@
               cr+=pixels[i]; cg+=pixels[i+1]; cb+=pixels[i+2];
             }
           }
-          const centerWeight=mode==='detail' ? .58 : .12;
-          r=(r/16)*(1-centerWeight)+(cr/4)*centerWeight;
-          g=(g/16)*(1-centerWeight)+(cg/4)*centerWeight;
-          b=(b/16)*(1-centerWeight)+(cb/4)*centerWeight;
-          const lab=rgbToLab([r,g,b]);
+          let lab;
+          if (mode==='cartoon') {
+            // A median resists blended fringe colors at silhouette boundaries.
+            const channels=[[],[],[]];
+            for (let sy=0;sy<scale;sy++) for (let sx=0;sx<scale;sx++) {
+              const i=((y*scale+sy)*work.width+x*scale+sx)*4;
+              for (let k=0;k<3;k++) channels[k].push(pixels[i+k]);
+            }
+            const medians=channels.map(channel=>{
+              channel.sort((a,b)=>a-b);
+              return (channel[7]+channel[8])/2;
+            });
+            lab=rgbToLab([(r/16)*.25+medians[0]*.75,(g/16)*.25+medians[1]*.75,(b/16)*.25+medians[2]*.75]);
+          } else {
+            const centerWeight=.58;
+            lab=rgbToLab([(r/16)*(1-centerWeight)+(cr/4)*centerWeight,
+                          (g/16)*(1-centerWeight)+(cg/4)*centerWeight,
+                          (b/16)*(1-centerWeight)+(cb/4)*centerWeight]);
+          }
           rawLabs.push(lab);
           const initial=nearestColorFromLab(lab); initialCounts[initial.code]=(initialCounts[initial.code]||0)+1;
         }
@@ -628,6 +642,22 @@
               if (labDistanceSq(lab,rawLabs[next])>625) continue;
               for (let k=0;k<3;k++) errors[next][k]+=residual[k]*weight*.42;
             }
+          }
+        }
+        if (mode==='cartoon') {
+          // Remove only low-contrast, single-bead specks enclosed by one color.
+          const cleaned=cells.slice();
+          for (let y=1;y<height-1;y++) for (let x=1;x<width-1;x++) {
+            const i=y*width+x, neighbor=cells[i-1];
+            if (cells[i].code===neighbor.code) continue;
+            if ([cells[i+1],cells[i-width],cells[i+width]].every(p=>p.code===neighbor.code)
+                && labDistanceSq(rawLabs[i],neighbor.lab)<625) cleaned[i]=neighbor;
+          }
+          for (let i=0;i<cells.length;i++) if (cleaned[i]!==cells[i]) {
+            counts[cells[i].code]--;
+            if (!counts[cells[i].code]) delete counts[cells[i].code];
+            counts[cleaned[i].code]=(counts[cleaned[i].code]||0)+1;
+            cells[i]=cleaned[i];
           }
         }
         const legend = Object.entries(counts)
